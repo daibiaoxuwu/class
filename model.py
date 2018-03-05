@@ -40,6 +40,7 @@ class BiRNN(object):
 
 
         inputs =  self.input_data
+        print(inputs.shape)
         # inputs shape : (batch_size , sequence_length , rnn_size)
 
         # bidirection rnn 的inputs shape 要求是(sequence_length, batch_size, rnn_size)
@@ -47,13 +48,17 @@ class BiRNN(object):
         # 经过transpose的转换已经将shape变为(sequence_length, batch_size, rnn_size)
         # 只是双向rnn接受的输入必须是一个list,因此还需要后续两个步骤的变换
         inputs = tf.transpose(inputs, [1,0,2])
+        print(inputs.shape)
         # 转换成(batch_size * sequence_length, rnn_size)
         inputs = tf.reshape(inputs, [-1, rnn_size])
+        print(inputs[0].shape)
         # 转换成list,里面的每个元素是(batch_size, rnn_size)
         inputs = tf.split(inputs, sequence_length, 0)
+        print(inputs[0].shape)
 
         with tf.name_scope('bi_rnn'), tf.variable_scope('bi_rnn'):
-            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, self.pad,dtype=tf.float32)
+#            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, self.pad,dtype=tf.float32)
+            outputs, _,_ = tf.contrib.rnn.stack_bidirectional_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, sequence_length=self.pad,dtype=tf.float32)
 
         # 定义attention layer 
         attention_size = attn_size
