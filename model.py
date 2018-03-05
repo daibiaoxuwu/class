@@ -38,9 +38,8 @@ class BiRNN(object):
 			lstm_bw_cell_m = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.MultiRNNCell(lstm_fw_cell_list), output_keep_prob=self.output_keep_prob)
 
 
-		with tf.device('/cpu:0'):
-			embedding = tf.Variable(tf.truncated_normal([vocab_size, embedding_size], stddev=0.1), name='embedding')
-			inputs = tf.nn.embedding_lookup(embedding, self.input_data)
+        embedding = tf.Variable(tf.truncated_normal([vocab_size, embedding_size], stddev=0.1), name='embedding')
+        inputs = tf.nn.embedding_lookup(embedding, self.input_data)
 
 		# self.input_data shape: (batch_size , sequence_length)
 		# inputs shape : (batch_size , sequence_length , rnn_size)
