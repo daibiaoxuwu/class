@@ -22,8 +22,9 @@ class BiRNN(object):
         """
 
         self.output_keep_prob = tf.placeholder(tf.float32, name='output_keep_prob')
-        self.input_data = tf.placeholder(tf.int32, shape=[None, sequence_length,rnn_size], name='input_data')
+        self.input_data = tf.placeholder(tf.float32, shape=[None, sequence_length,rnn_size], name='input_data')
         self.targets = tf.placeholder(tf.float32, shape=[None, n_classes], name='targets')
+        self.pad = tf.placeholder(tf.int32, shape=[None], name='pad')
 
         # 定义前向RNN Cell
         with tf.name_scope('fw_rnn'), tf.variable_scope('fw_rnn'):
@@ -52,7 +53,7 @@ class BiRNN(object):
         inputs = tf.split(inputs, sequence_length, 0)
 
         with tf.name_scope('bi_rnn'), tf.variable_scope('bi_rnn'):
-            outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, dtype=tf.float32)
+            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, self.pad,dtype=tf.float32)
 
         # 定义attention layer 
         attention_size = attn_size

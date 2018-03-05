@@ -55,7 +55,7 @@ model=word2vec.load('train/combine100.bin')
 # Text file containing words for training
 training_path = r'train/resp'
 
-saver=tf.train.Saver(max_to_keep=1)
+saver=tf.train.Saver(max_to_keep=5)
 max_acc=0
 
 

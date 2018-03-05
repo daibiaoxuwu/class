@@ -3,7 +3,6 @@
 #learning rate decay
 #patchlength 0 readfrom resp
 #add:saving session
-from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
@@ -16,7 +15,8 @@ import os
 import json
 import re
 import requests
-import pickle
+import cPickle
+from model import BiRNN
 
 # Parameters
 # =================================================
@@ -77,9 +77,9 @@ def elapsed(sec):
 logs_path = 'log/rnn_words'
 writer = tf.summary.FileWriter(logs_path)
 
-model=word2vec.load('train/combine100.bin')
+model=word2vec.load('../lstm/train/combine100.bin')
 # Text file containing words for training
-training_path = r'train/resp'
+training_path = r'../lstm/train/resp'
 
 max_acc=0
 
@@ -99,8 +99,8 @@ def lemma(verb):
     content=json.loads(resp)
     return content['sentences'][0]['tokens'][0]['lemma']
 '''
-with open('train/lemma', 'rb') as f:
-    ldict = pickle.load(f)
+with open('../lstm/train/lemma2', 'rb') as f:
+    ldict = cPickle.load(f)
 
 def lemma(verb):
     if verb in ldict:
@@ -215,16 +215,15 @@ print('init:2')
 vocab_size=len(verbtags)
 
 def main(_):
-    FLAGS.n_classes = data_loader.n_classes
-    FLAGS.num_batches = data_loader.num_batches
 
+    '''
     test_data_loader = InputHelper()
     test_data_loader.load_dictionary(FLAGS.data_dir+'/dictionary')
     test_data_loader.create_batches(FLAGS.data_dir+'/'+FLAGS.test_file, 100, FLAGS.sequence_length)
-
+    '''
     if FLAGS.pre_trained_vec:
         embeddings = np.load(FLAGS.pre_trained_vec)
-        print embeddings.shape
+        print(embeddings.shape)
         FLAGS.vocab_size = embeddings.shape[0]
         FLAGS.embedding_size = embeddings.shape[1]
 
@@ -263,32 +262,35 @@ def main(_):
         if FLAGS.init_from is not None:
             saver.restore(sess, ckpt.model_checkpoint_path)
 
+        count=patchlength
         for e in xrange(FLAGS.num_batches):
-            data_loader.reset_batch()#shuffle
             total_loss=0
-            for b in xrange(FLAGS.num_batches):
-                start = time.time()
-                x, y = data_loader.next_batch()
-                feed = {model.input_data:x, model.targets:y, model.output_keep_prob:FLAGS.dropout_keep_prob}
-                train_loss, summary,  _ = sess.run([model.cost, merged, model.train_op], feed_dict=feed)
-                end = time.time()
+            start = time.time()
+            count,inputs,pads,answers = list_tags(count,FLAGS.batch_size)
+            if count>=len(resp):
+                count=patchlength
+                continue
+            feed = {model.input_data:inputs, model.targets:answers, model.output_keep_prob:FLAGS.dropout_keep_prob,model.pad:pads}
+            train_loss, summary,  _ = sess.run([model.cost, merged, model.train_op], feed_dict=feed)
+            end = time.time()
 
 
-                print('{}/{} , train_loss = {:.3f}, time/batch = {:.3f}'.format(global_step, FLAGS.num_batches,  train_loss, end - start))
-                total_loss+=train_loss
+            print('{}/{} , train_loss = {:.3f}, time/batch = {:.3f}'.format(global_step.eval(), FLAGS.num_batches,  train_loss, end - start))
+            total_loss+=train_loss
 
 
-                if global_step % 20 == 0:
-                    train_writer.add_summary(summary, e * FLAGS.num_batches + b)
+            if global_step.eval() % 20 == 0:
+                train_writer.add_summary(summary, e)
 
-                if global_step % FLAGS.save_steps == 0:
-                    checkpoint_path = os.path.join(FLAGS.save_dir, 'model.ckpt')        
-                    saver.save(sess, checkpoint_path, global_step=global_step)
-                    print 'model saved to {}'.format(checkpoint_path)
+            if acc>max_acc:
+                max_acc=acc
+                checkpoint_path = os.path.join(FLAGS.save_dir, 'model.ckpt')        
+                saver.save(sess, checkpoint_path, global_step=global_step)
+                print 'model saved to {}'.format(checkpoint_path)
 
-            test_data_loader.reset_batch()
             print ' loss:',total_loss/FLAGS.num_batches
             '''
+            test_data_loader.reset_batch()
             test_accuracy = []
             for i in xrange(test_data_loader.num_batches):
                 test_x, test_y = test_data_loader.next_batch()
