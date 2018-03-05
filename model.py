@@ -22,7 +22,7 @@ class BiRNN(object):
         """
 
         self.output_keep_prob = tf.placeholder(tf.float32, name='output_keep_prob')
-        self.input_data = tf.placeholder(tf.int32, shape=[None, sequence_length], name='input_data')
+        self.input_data = tf.placeholder(tf.int32, shape=[None, sequence_length,rnn_size], name='input_data')
         self.targets = tf.placeholder(tf.float32, shape=[None, n_classes], name='targets')
 
         # 定义前向RNN Cell
@@ -38,10 +38,7 @@ class BiRNN(object):
             lstm_bw_cell_m = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.MultiRNNCell(lstm_fw_cell_list), output_keep_prob=self.output_keep_prob)
 
 
-        embedding = tf.Variable(tf.truncated_normal([vocab_size, embedding_size], stddev=0.1), name='embedding')
-        inputs = tf.nn.embedding_lookup(embedding, self.input_data)
-
-        # self.input_data shape: (batch_size , sequence_length)
+        inputs =  self.input_data
         # inputs shape : (batch_size , sequence_length , rnn_size)
 
         # bidirection rnn 的inputs shape 要求是(sequence_length, batch_size, rnn_size)
