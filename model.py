@@ -47,6 +47,7 @@ class BiRNN(object):
         # 因此这里需要对inputs做一些变换
         # 经过transpose的转换已经将shape变为(sequence_length, batch_size, rnn_size)
         # 只是双向rnn接受的输入必须是一个list,因此还需要后续两个步骤的变换
+        '''
         inputs = tf.transpose(inputs, [1,0,2])
         print(inputs.shape)
         # 转换成(batch_size * sequence_length, rnn_size)
@@ -55,10 +56,15 @@ class BiRNN(object):
         # 转换成list,里面的每个元素是(batch_size, rnn_size)
         inputs = tf.split(inputs, sequence_length, 0)
         print(inputs[0].shape)
+        '''
 
         with tf.name_scope('bi_rnn'), tf.variable_scope('bi_rnn'):
 #            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, self.pad,dtype=tf.float32)
-            outputs, _,_ = tf.contrib.rnn.stack_bidirectional_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, sequence_length=self.pad,dtype=tf.float32)
+            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, sequence_length=self.pad,dtype=tf.float32)
+            outputs=tf.concat(outputs, 2)
+            outputs=tf.transpose(outputs,[1,0,2])
+            print outputs.shape
+            # outputs shape : (batch_size , sequence_length , rnn_size*2)
 
         # 定义attention layer 
         attention_size = attn_size
@@ -68,17 +74,22 @@ class BiRNN(object):
             u_list = []
             for t in xrange(sequence_length):
                 u_t = tf.tanh(tf.matmul(outputs[t], attention_w) + attention_b) 
-                u_list.append(u_t)
+                u_list.append(u_t)#(batch_size,sq_length,attention_size)
+            print '0',len(u_list)
+            print '1',u_list[0].shape
             u_w = tf.Variable(tf.truncated_normal([attention_size, 1], stddev=0.1), name='attention_uw')
             attn_z = []
             for t in xrange(sequence_length):
-                z_t = tf.matmul(u_list[t], u_w)
+                z_t = tf.matmul(u_list[t], u_w)#(batch_size,sq_length,1)
                 attn_z.append(z_t)
             # transform to batch_size * sequence_length
             attn_zconcat = tf.concat(attn_z, axis=1)
+            print '2',attn_zconcat.shape
             self.alpha = tf.nn.softmax(attn_zconcat)
+            print '2',self.alpha.shape
             # transform to sequence_length * batch_size * 1 , same rank as outputs
             alpha_trans = tf.reshape(tf.transpose(self.alpha, [1,0]), [sequence_length, -1, 1])
+            print(outputs.shape,alpha_trans.shape)
             self.final_output = tf.reduce_sum(outputs * alpha_trans, 0)
 
         print self.final_output.shape
@@ -102,5 +113,7 @@ class BiRNN(object):
 
 
 
+    #def __init__(self, embedding_size, rnn_size, layer_size, 
+    #    vocab_size, attn_size, sequence_length, n_classes, grad_clip, learning_rate):
 if __name__ == '__main__':
-    model = BiRNN(128, 128, 2, 100, 256, 50, 30, 5, 0.001)
+    model = BiRNN(100, 128, 2, 100, 256, 700, 6, 5, 0.001)
