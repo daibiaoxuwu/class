@@ -26,6 +26,7 @@ class BiRNN(object):
         self.targets = tf.placeholder(tf.float32, shape=[None, n_classes], name='targets')
         self.pad = tf.placeholder(tf.int32, shape=[None], name='pad')
 
+        '''
         # 定义前向RNN Cell
         with tf.name_scope('fw_rnn'), tf.variable_scope('fw_rnn'):
             print tf.get_variable_scope().name
@@ -37,6 +38,7 @@ class BiRNN(object):
             print tf.get_variable_scope().name
             lstm_bw_cell_list = [tf.contrib.rnn.LSTMCell(rnn_size) for _ in xrange(layer_size)]
             lstm_bw_cell_m = tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.MultiRNNCell(lstm_fw_cell_list), output_keep_prob=self.output_keep_prob)
+        '''
 
 
         inputs =  self.input_data
@@ -60,8 +62,16 @@ class BiRNN(object):
 
         with tf.name_scope('bi_rnn'), tf.variable_scope('bi_rnn'):
 #            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, self.pad,dtype=tf.float32)
-            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, sequence_length=self.pad,dtype=tf.float32)
-            outputs=tf.concat(outputs, 2)
+#            outputs, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell_m, lstm_bw_cell_m, inputs, sequence_length=self.pad,dtype=tf.float32)
+            _inputs = inputs
+
+            for _ in range(layer_size):
+                with tf.variable_scope(None, default_name="bidirectional-rnn"):
+                    lstm_fw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
+                    lstm_bw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
+                    output, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell, lstm_bw_cell, _inputs, sequence_length=self.pad,dtype=tf.float32)
+                    _inputs = tf.concat(output, 2)
+            outputs= _inputs
             outputs=tf.transpose(outputs,[1,0,2])
             print outputs.shape
             # outputs shape : (batch_size , sequence_length , rnn_size*2)

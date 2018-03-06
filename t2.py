@@ -272,7 +272,7 @@ def main(_):
                 count=patchlength
                 continue
             feed = {model.input_data:inputs, model.targets:answers, model.output_keep_prob:FLAGS.dropout_keep_prob,model.pad:pads}
-            train_loss,acc, summary,  _ = sess.run([model.cost,model.accuracy, merged, model.train_op], feed_dict=feed)
+            train_loss, summary,  _ = sess.run([model.cost, merged, model.train_op], feed_dict=feed)
             end = time.time()
 
 
