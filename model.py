@@ -66,14 +66,14 @@ class BiRNN(object):
             _inputs = inputs
 
             for _ in range(layer_size):
+                lstm_fw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
+                lstm_bw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
                 with tf.variable_scope(None, default_name="bidirectional-rnn"):
-                    lstm_fw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
-                    lstm_bw_cell = tf.contrib.rnn.LSTMCell(rnn_size)
                     output, _ = tf.nn.bidirectional_dynamic_rnn(lstm_fw_cell, lstm_bw_cell, _inputs, sequence_length=self.pad,dtype=tf.float32)
                     _inputs = tf.concat(output, 2)
             outputs= _inputs
             outputs=tf.transpose(outputs,[1,0,2])
-            print outputs.shape
+            print(outputs.shape)
             # outputs shape : (batch_size , sequence_length , rnn_size*2)
 
         # 定义attention layer 
@@ -82,27 +82,27 @@ class BiRNN(object):
             attention_w = tf.Variable(tf.truncated_normal([2*rnn_size, attention_size], stddev=0.1), name='attention_w')
             attention_b = tf.Variable(tf.constant(0.1, shape=[attention_size]), name='attention_b')
             u_list = []
-            for t in xrange(sequence_length):
+            for t in range(sequence_length):
                 u_t = tf.tanh(tf.matmul(outputs[t], attention_w) + attention_b) 
                 u_list.append(u_t)#(batch_size,sq_length,attention_size)
-            print '0',len(u_list)
-            print '1',u_list[0].shape
+            #print '0',len(u_list)
+            #print '1',u_list[0].shape
             u_w = tf.Variable(tf.truncated_normal([attention_size, 1], stddev=0.1), name='attention_uw')
             attn_z = []
-            for t in xrange(sequence_length):
+            for t in range(sequence_length):
                 z_t = tf.matmul(u_list[t], u_w)#(batch_size,sq_length,1)
                 attn_z.append(z_t)
             # transform to batch_size * sequence_length
             attn_zconcat = tf.concat(attn_z, axis=1)
-            print '2',attn_zconcat.shape
+            #print '2',attn_zconcat.shape
             self.alpha = tf.nn.softmax(attn_zconcat)
-            print '2',self.alpha.shape
+            #print '2',self.alpha.shape
             # transform to sequence_length * batch_size * 1 , same rank as outputs
             alpha_trans = tf.reshape(tf.transpose(self.alpha, [1,0]), [sequence_length, -1, 1])
-            print(outputs.shape,alpha_trans.shape)
+            #print(outputs.shape,alpha_trans.shape)
             self.final_output = tf.reduce_sum(outputs * alpha_trans, 0)
 
-        print self.final_output.shape
+        #print self.final_output.shape
         # outputs shape: (sequence_length, batch_size, 2*rnn_size)
         fc_w = tf.Variable(tf.truncated_normal([2*rnn_size, n_classes], stddev=0.1), name='fc_w')
         fc_b = tf.Variable(tf.zeros([n_classes]), name='fc_b')

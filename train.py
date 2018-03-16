@@ -15,8 +15,9 @@ import os
 import json
 import re
 import requests
-import cPickle
+import pickle
 from model import BiRNN
+from readerbig3 import reader
 
 # Parameters
 # =================================================
@@ -25,7 +26,7 @@ tf.flags.DEFINE_integer('rnn_size', 100, 'hidden units of RNN , as well as dimen
 tf.flags.DEFINE_float('dropout_keep_prob', 0.5, 'Dropout keep probability (default : 0.5)')#too high?
 tf.flags.DEFINE_integer('layer_size', 2, 'number of layers of RNN (default: 2)')
 tf.flags.DEFINE_integer('batch_size', 128, 'Batch Size (default : 32)')
-tf.flags.DEFINE_integer('sequence_length', 700, 'Sequence length (default : 32)')
+#tf.flags.DEFINE_integer('sequence_length', 15, 'Sequence length (default : 32)')
 tf.flags.DEFINE_integer('attn_size', 256, 'attention layer size')
 tf.flags.DEFINE_float('grad_clip', 5.0, 'clip gradients at this value')
 tf.flags.DEFINE_integer("num_epochs", 300, 'Number of training epochs (default: 200)')
@@ -48,8 +49,10 @@ FLAGS = tf.flags.FLAGS
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 embedding_size=100
 patchlength=0
+num_verbs=1
 
-maxlength=700
+maxlength=200
+#maxlength=15
 verbtags=['VB','VBZ','VBP','VBD','VBN','VBG']
 
 global_step = tf.Variable(0, trainable=False)
@@ -62,7 +65,6 @@ display_step = 20
 n_hidden = 512
 
 
-print('init:0')
 start_time = time.time()
 def elapsed(sec):
     if sec<60:
@@ -72,154 +74,34 @@ def elapsed(sec):
     else:
         return str(sec/(60*60)) + " hr"
 
+def getMem():
+    with open('/proc/meminfo') as f:
+        total = int(f.readline().split()[1])
+        free = int(f.readline().split()[1])
+        buffers = int(f.readline().split()[1])
+        cache = int(f.readline().split()[1])
+        if buffers<1000000:
+            raise NameError
+        print(buffers)
+
 
 # Target log path
 logs_path = 'log/rnn_words'
 writer = tf.summary.FileWriter(logs_path)
 
-model=word2vec.load('../lstm/train/combine100.bin')
-# Text file containing words for training
-training_path = r'../lstm/train/resp'
 
-max_acc=0
+data=reader(patchlength=patchlength,\
+            maxlength=maxlength,\
+            embedding_size=embedding_size,\
+            num_verbs=num_verbs)
 
-
-
-with open(training_path) as f:
-    resp=f.readlines()
-print(len(resp))
-
-#len:2071700
-print('init:1')
-'''
-def lemma(verb):
-    url = 'http://127.0.0.1:9000'
-    params = {'properties' : r"{'annotators': 'lemma', 'outputFormat': 'json'}"}
-    resp = requests.post(url, verb, params=params).text
-    content=json.loads(resp)
-    return content['sentences'][0]['tokens'][0]['lemma']
-'''
-with open('../lstm/train/lemma2', 'rb') as f:
-    ldict = cPickle.load(f)
-
-def lemma(verb):
-    if verb in ldict:
-        return ldict[verb]
-    else:
-        print('errverb:',verb)
-        return verb
-
-def list_tags(st,step):
-    realength=0
-    tagdict={')':0}
-    inputs=[]
-    pads=[]
-    answer=[]
-    count=st
-    #fft=0
-    for sentence in resp[st:]:#一个sentence是一句话
-        if len(answer)==step:
-            break
-        outword=[]
-        count+=1
-        total=0
-        
-        for tag in sentence.split():
-            if tag[0]=='(':
-                if tag[1:] in verbtags:
-                    total+=1
-        if total!=1:
-            continue
-        #else:
-            #fft+=1
-        
-        for oldsentence in resp[count-patchlength:count]:
-            
-        
-            for tag in sentence.split():
-                if tag[0]=='(':
-                    if tag not in tagdict:
-                        tagdict[tag]=len(tagdict)
-                    tagword=[0]*embedding_size
-                    tagword[tagdict[tag]]=1
-                    outword.append(tagword)
-                else:                
-                    node=re.match('([^\)]+)(\)*)',tag.strip())
-                    if node:
-                        if node.group(1) in model:
-                            outword.append(model[node.group(1)].tolist())
-                        else:
-                            outword.append([0]*embedding_size)
-                        tagword=[0]*embedding_size
-                        tagword[0]=1
-                        for _ in range(len(node.group(2))-1):
-                            outword.append(tagword)
-
-        
-        for tag in sentence.split():
-            if tag[0]=='(':
-                if tag=='(MD':
-                    mdflag=1
-                else:
-                    mdflag=0
-                    if tag[1:] in verbtags:
-                        answer.append(verbtags.index(tag[1:]))
-                        tag='(VB'
-                        vbflag=1
-                    else:
-                        vbflag=0
-                    if tag not in tagdict:
-                        tagdict[tag]=len(tagdict)
-                    tagword=[0]*embedding_size
-                    tagword[tagdict[tag]]=1
-                    outword.append(tagword)
-            else:
-                if mdflag==0:
-                    node=re.match('([^\)]+)(\)*)',tag.strip())
-                    if node:
-                        if node.group(1) in model:
-                            if vbflag==1:
-                                node2=lemma(node.group(1))
-                                if node2 in model:
-                                    outword.append(model[node2].tolist())
-                                else:
-                                    outword.append([0]*embedding_size)
-                            else:
-                                outword.append(model[node.group(1)].tolist())
-                        else:
-                            outword.append([0]*embedding_size)
-                        tagword=[0]*embedding_size
-                        tagword[0]=1
-                        for _ in range(len(node.group(2))-1):
-                            outword.append(tagword)
-        outword=np.array(outword)
-        if outword.shape[0]>maxlength:
-            print('pass')
-            answer=answer[:-1]
-            continue
-        pads.append(outword.shape[0])
-        outword=np.pad(outword,((0,maxlength-outword.shape[0]),(0,0)),'constant')
-        inputs.append(outword)
-    inputs=np.array(inputs)
-    answers=np.zeros((len(answer),len(verbtags)))
-    for num in range(len(answer)):
-        answers[num][answer[num]]=1
-    #print(fft)
-    return count,inputs,pads,answers
-print('init:2')
-
-#dictionary, reverse_dictionary = build_dataset(training_data)
-#vocab_size = len(dictionary)
-
-# Parameters
-vocab_size=len(verbtags)
 
 def main(_):
 
     '''
     test_data_loader = InputHelper()
     test_data_loader.load_dictionary(FLAGS.data_dir+'/dictionary')
-    test_data_loader.create_batches(FLAGS.data_dir+'/'+FLAGS.test_file, 100, FLAGS.sequence_length)
+    test_data_loader.create_batches(FLAGS.data_dir+'/'+FLAGS.test_file, 100, maxlength)
     '''
     if FLAGS.pre_trained_vec:
         embeddings = np.load(FLAGS.pre_trained_vec)
@@ -235,7 +117,7 @@ def main(_):
 
     # Define specified Model
     model = BiRNN(embedding_size=FLAGS.embedding_size, rnn_size=FLAGS.rnn_size, layer_size=FLAGS.layer_size,    
-        vocab_size=FLAGS.vocab_size, attn_size=FLAGS.attn_size, sequence_length=FLAGS.sequence_length,
+        vocab_size=FLAGS.vocab_size, attn_size=FLAGS.attn_size, sequence_length=maxlength,
         n_classes=FLAGS.n_classes, grad_clip=FLAGS.grad_clip, learning_rate=FLAGS.learning_rate)
 
     # define value for tensorboard
@@ -245,7 +127,10 @@ def main(_):
 
     # 调整GPU内存分配方案
     tf_config = tf.ConfigProto()
-    tf_config.gpu_options.allow_growth = True
+#    tf_config.gpu_options.allow_growth = True
+
+    
+    max_acc=0
 
     with tf.Session(config=tf_config) as sess:
         train_writer = tf.summary.FileWriter(FLAGS.log_dir, sess.graph)
@@ -262,38 +147,45 @@ def main(_):
         if FLAGS.init_from is not None:
             saver.restore(sess, ckpt.model_checkpoint_path)
 
-        count=patchlength
-        for e in xrange(FLAGS.num_batches):
-            total_loss=0
-            start = time.time()
+
+        sess.graph.finalize() 
+        start = time.time()
+
+
+        for e in range(FLAGS.num_batches):
             print('start')
-            count,inputs,pads,answers = list_tags(count,FLAGS.batch_size)
-            if count>=len(resp):
-                count=patchlength
-                continue
+            getMem()
+            total_loss=0
+            inputs,pads,answers = data.list_tags(FLAGS.batch_size)
+            getMem()
             feed = {model.input_data:inputs, model.targets:answers, model.output_keep_prob:FLAGS.dropout_keep_prob,model.pad:pads}
+            getMem()
             train_loss,acc, summary,  _ = sess.run([model.cost,model.accuracy, merged, model.train_op], feed_dict=feed)
-            end = time.time()
-
-
-            print('{}/{} , train_loss = {:.3f}, time/batch = {:.3f}'.format(global_step.eval(), FLAGS.num_batches,  train_loss, end - start))
+            getMem()
             total_loss+=train_loss
+            getMem()
 
 
-            if global_step.eval() % 20 == 0:
+            
+            if e % 2000 == 0:
+                print('{}/{} , train_loss = {:.3f}, time/batch = {:.3f}'.format(e, FLAGS.num_batches,  total_loss/200, time.time()-start))
+                start = time.time()
+                total_loss=0
+
+
+            if e % 2000 == 0:
                 train_writer.add_summary(summary, e)
 
-            if acc>max_acc:
-                max_acc=acc
+            if e % 20000 == 0:
                 checkpoint_path = os.path.join(FLAGS.save_dir, 'model.ckpt')        
-                saver.save(sess, checkpoint_path, global_step=global_step)
-                print 'model saved to {}'.format(checkpoint_path)
+                saver.save(sess, checkpoint_path, global_step=e)
+                print('model saved to {}'.format(checkpoint_path))
 
-            print ' loss:',total_loss/FLAGS.num_batches
             '''
+            print ' loss:',total_loss/FLAGS.num_batches
             test_data_loader.reset_batch()
             test_accuracy = []
-            for i in xrange(test_data_loader.num_batches):
+            for i in range(test_data_loader.num_batches):
                 test_x, test_y = test_data_loader.next_batch()
                 feed = {model.input_data:test_x, model.targets:test_y, model.output_keep_prob:1.0}
                 accuracy = sess.run(model.accuracy, feed_dict=feed)
