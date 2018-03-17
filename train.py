@@ -6,16 +6,8 @@
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.contrib import rnn
-import random
-import collections
 import time
-import word2vec
 import os
-import json
-import re
-import requests
-import pickle
 from model import BiRNN
 from readerbig3 import reader
 
@@ -152,18 +144,18 @@ def main(_):
         start = time.time()
 
 
+        print('start')
         for e in range(FLAGS.num_batches):
-            print('start')
-            getMem()
+        #    getMem()
             total_loss=0
             inputs,pads,answers = data.list_tags(FLAGS.batch_size)
-            getMem()
+        #    getMem()
             feed = {model.input_data:inputs, model.targets:answers, model.output_keep_prob:FLAGS.dropout_keep_prob,model.pad:pads}
-            getMem()
+        #    getMem()
             train_loss,acc, summary,  _ = sess.run([model.cost,model.accuracy, merged, model.train_op], feed_dict=feed)
-            getMem()
+        #    getMem()
             total_loss+=train_loss
-            getMem()
+        #    getMem()
 
 
             
