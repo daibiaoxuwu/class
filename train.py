@@ -33,24 +33,23 @@ tf.flags.DEFINE_string('init_from', None, 'continue training from saved model at
 #tf.flags.DEFINE_integer('save_steps', 1000, 'num of train steps for saving model')
 tf.flags.DEFINE_integer('vocab_size', 1000, 'num of train steps for saving model')
 tf.flags.DEFINE_integer('n_classes', 6, 'num of train steps for saving model')
-tf.flags.DEFINE_integer('num_batches', 1000, 'num of train steps for saving model')
+tf.flags.DEFINE_integer('num_batches', 1000000, 'num of train steps for saving model')
 
 FLAGS = tf.flags.FLAGS
 #FLAGS._parse_flags()
 
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 embedding_size=100
-patchlength=0
+patchlength=3
 num_verbs=1
 
-maxlength=200
+maxlength=700
 #maxlength=15
 verbtags=['VB','VBZ','VBP','VBD','VBN','VBG']
 
 global_step = tf.Variable(0, trainable=False)
 learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step=global_step, decay_steps=100,decay_rate=0.9)
 training_iters = 1000000
-training_steps=150
 display_step = 20
 
 # number of units in RNN cell
@@ -159,16 +158,16 @@ def main(_):
 
 
             
-            if e % 2000 == 0:
+            if e % 200 == 0:
                 print('{}/{} , train_loss = {:.3f}, time/batch = {:.3f}'.format(e, FLAGS.num_batches,  total_loss/200, time.time()-start))
                 start = time.time()
                 total_loss=0
 
 
-            if e % 2000 == 0:
+            if e % 200 == 0:
                 train_writer.add_summary(summary, e)
 
-            if e % 20000 == 0:
+            if e % 2000 == 0:
                 checkpoint_path = os.path.join(FLAGS.save_dir, 'model.ckpt')        
                 saver.save(sess, checkpoint_path, global_step=e)
                 print('model saved to {}'.format(checkpoint_path))
